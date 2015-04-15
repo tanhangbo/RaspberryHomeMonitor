@@ -82,8 +82,8 @@ enum cur_state {
 
 };
 
-//todo:1.一开机就会检测到的fix 2.检查内存泄露
-//using cvsaveimage to see the first 3 pictures
+//todo:1.检查内存泄露
+//using cvsaveimage at a fixed interval and compress to zip
 
 	//cvCopy( const CvArr* src, CvArr* dst
 bool detect_motion(IplImage *frame1, IplImage *frame2, IplImage *frame3)
@@ -129,7 +129,7 @@ CvVideoWriter *create_video(CvVideoWriter **video_writer, IplImage *frame)
 	char timeString[50] = {0};
 	time(&current_time);
 	time_info = localtime(&current_time);
-	strftime(timeString, 50, "%m%d_%H%M%S.avi", time_info);
+	strftime(timeString, 50, "./record/avi/%m%d_%H%M%S.avi", time_info);
 	printf("creating video:%s\n", timeString);
 	*video_writer =  cvCreateVideoWriter(timeString,
 				CV_FOURCC('M', 'J', 'P', 'G'), 25.0, cvGetSize(frame));
@@ -218,11 +218,11 @@ void* dispatch_thread(void *arg)
 
 			if (send_one_image) {
 				send_one_image = false;
-				if(!cvSaveImage("IMAGE.jpg", frame))
+				if(!cvSaveImage("./record/jpg/IMAGE.jpg", frame))
 					printf("Could not save: %s\n","IMAGE.jpg");
 				else
 					printf("Saving: %s\n","IMAGE.jpg");
-				smtp_entry("./IMAGE.jpg");
+				smtp_entry("./record/jpg/IMAGE.jpg");
 			}
 
 		break;
@@ -230,12 +230,12 @@ void* dispatch_thread(void *arg)
 		case DETECTED:
 
 			//1. get current picture and send
-			if(!cvSaveImage("XIMAGE.jpg", frame))
+			if(!cvSaveImage("./record/jpg/XIMAGE.jpg", frame))
 				printf("Could not save: %s\n","XIMAGE.jpg");
 			else
 				printf("Saving: %s\n","XIMAGE.jpg");
 
-			smtp_entry("./XIMAGE.jpg");
+			smtp_entry("./record/jpg/XIMAGE.jpg");
 
 			create_video(&video_writer, frame);
 
@@ -244,6 +244,15 @@ void* dispatch_thread(void *arg)
 		break;
 
 		case RECORDING:
+
+			//1. get current picture with an interval
+			if (video_count % 20 == 0) {
+				char image_path[100];
+				sprintf(image_path, "./record/jpg/IMAGE_%d.jpg", video_count);
+				if(!cvSaveImage(image_path, frame))
+					printf("Could not save: %s\n",image_path);
+			}
+
 			//2. record 1 minute video then stop and rejudge and recode
 			if (video_count < 1000) {
 				cvWriteFrame(video_writer, frame);
@@ -259,6 +268,11 @@ void* dispatch_thread(void *arg)
 				printf("stop record\n");
 				cvReleaseVideoWriter(&video_writer);
 			}
+
+			//compress and send
+			system("zip 1.zip ./record/jpg/*");
+			//todo: fix this not ok
+			//smtp_entry("./1.zip");
 
 			state = NORMAL;
 		break;
