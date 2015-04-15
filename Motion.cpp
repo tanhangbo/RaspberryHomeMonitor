@@ -74,7 +74,7 @@ std::mutex frame_lock;
 
 
 enum cur_state {
-
+	INIT,
 	NORMAL,
 	DETECTED,
 	RECORDING,
@@ -91,7 +91,7 @@ bool detect_motion(IplImage *frame1, IplImage *frame2, IplImage *frame3)
 	int black_pixels = 0;
 
 
-
+	//printf("ENTER\n");
 	//Failed to load OpenCL runtime 
 	cvCvtColor(frame1, frame_gray1, CV_BGR2GRAY);
 	cvCvtColor(frame2, frame_gray2, CV_BGR2GRAY);
@@ -156,7 +156,7 @@ void* dispatch_thread(void *arg)
 
 	int init_step = 0;
 
-	cur_state state = NORMAL;
+	cur_state state = INIT;
 
 	while (true) {
 
@@ -190,6 +190,7 @@ void* dispatch_thread(void *arg)
 				cvCopy(frame, frame2);
 			} else if (2 == init_step) {
 				cvCopy(frame, frame3);
+				state = NORMAL;
 			}
 
 			init_step++;
@@ -199,16 +200,21 @@ void* dispatch_thread(void *arg)
 			cvCopy(frame2, frame1);
 			cvCopy(frame3, frame2);
 			cvCopy(frame, frame3);
+				
 		}
 
 
 
 		switch(state) {
+		case INIT:
+			printf("init state!\n");
+		break;
 
 		case NORMAL:
-			if(detect_motion(frame1, frame2, frame3))
+			if(detect_motion(frame1, frame2, frame3)) {
+				printf("detected!!!\n");
 				state = DETECTED;
-
+			}
 
 			if (send_one_image) {
 				send_one_image = false;
@@ -222,8 +228,6 @@ void* dispatch_thread(void *arg)
 		break;
 
 		case DETECTED:
-			printf("detected!!!\n");
-
 
 			//1. get current picture and send
 			if(!cvSaveImage("XIMAGE.jpg", frame))
@@ -257,6 +261,10 @@ void* dispatch_thread(void *arg)
 			}
 
 			state = NORMAL;
+		break;
+
+		default:
+			printf("switch not process\n");
 		break;
 
 		}
