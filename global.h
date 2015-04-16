@@ -5,10 +5,10 @@
 
 
 #define USER_NAME "admin"
-#define MAIL_ACCOUNT	"admin@163.com"
+#define MAIL_ACCOUNT	"admin@qq.com"
 #define MAIL_PASSWORD	"admin"
-#define SMTP_SERVER	"smtp.163.com"
-#define POP3_SERVER	"pop3.163.com"
+#define SMTP_SERVER	"smtp.qq.com"
+#define POP3_SERVER	"pop3.qq.com"
 
 
 #define IMAGE 100

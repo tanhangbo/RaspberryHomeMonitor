@@ -262,7 +262,7 @@ int authEmail(const int socketFd, const  char *mailAddr, const  char *mailPasswd
 	char userPasswd[MAX_EMAIL_LEN] = {0};
 
 	memset(&readData, 0, SMTP_MTU);
-    safeRead(socketFd, readData, SMTP_MTU);
+	safeRead(socketFd, readData, SMTP_MTU);
 
 	SMTP_Print6("[%s][%d]recv: %s\r\n", __FILE__, __LINE__, readData);
 
@@ -271,20 +271,20 @@ int authEmail(const int socketFd, const  char *mailAddr, const  char *mailPasswd
 
 	/* Recv: EHLO */
 	memset(&readData, 0, SMTP_MTU);
-    safeRead(socketFd, readData, SMTP_MTU);
+	safeRead(socketFd, readData, SMTP_MTU);
 
-    SMTP_Print6("[%s][%d]recv: %s\r\n", __FILE__, __LINE__, readData);
-    recvStatus(readData);
+	SMTP_Print6("[%s][%d]recv: %s\r\n", __FILE__, __LINE__, readData);
+	recvStatus(readData);
 
-    /* Send: AUTH LOGIN */
+	/* Send: AUTH LOGIN */
 	safeWrite(socketFd, "AUTH LOGIN\r\n", strlen("AUTH LOGIN\r\n"));
 
 	/* Recv: AUTH LOGIN */
 	memset(&readData, 0, SMTP_MTU);
-    safeRead(socketFd, readData, SMTP_MTU);
+	safeRead(socketFd, readData, SMTP_MTU);
 
-    SMTP_Print6("[%s][%d]recv: %s\r\n", __FILE__, __LINE__, readData);
-    recvStatus(readData);
+	SMTP_Print6("[%s][%d]recv: %s\r\n", __FILE__, __LINE__, readData);
+	recvStatus(readData);
 
 	/* Send: username */	
 	memset(&userName, 0, MAX_EMAIL_LEN);
@@ -298,10 +298,10 @@ int authEmail(const int socketFd, const  char *mailAddr, const  char *mailPasswd
 	
 	/* Recv: username */
 	memset(&readData, 0, SMTP_MTU);
-    safeRead(socketFd, readData, SMTP_MTU);
+	safeRead(socketFd, readData, SMTP_MTU);
 
-    SMTP_Print6("[%s][%d]recv: %s\r\n", __FILE__, __LINE__, readData);
-    recvStatus(readData);
+	SMTP_Print6("[%s][%d]recv: %s\r\n", __FILE__, __LINE__, readData);
+	recvStatus(readData);
 
 	/* Send: passwd */	
 	memset(&userPasswd, 0, MAX_EMAIL_LEN);
@@ -310,14 +310,14 @@ int authEmail(const int socketFd, const  char *mailAddr, const  char *mailPasswd
 	outSize = BASE64_SIZE(strlen(userPasswd));
 	base64_encode(writeData, outSize, (unsigned char*)userPasswd, strlen(userPasswd));
 	strcat(writeData, "\r\n");
-    safeWrite(socketFd, writeData, strlen(writeData));
+	safeWrite(socketFd, writeData, strlen(writeData));
 
 	/* Recv: passwd */
 	memset(&readData, 0, SMTP_MTU);
-    safeRead(socketFd, readData, SMTP_MTU);
+	safeRead(socketFd, readData, SMTP_MTU);
 
-    SMTP_Print6("[%s][%d]recv: %s\r\n", __FILE__, __LINE__, readData);
-    recvStatus(readData);
+	SMTP_Print6("[%s][%d]recv: %s\r\n", __FILE__, __LINE__, readData);
+	recvStatus(readData);
 
 	return 0;
 }
@@ -470,16 +470,16 @@ int mailAttachment( char **mail, const  char *filePath)
 		return -1;
 	}
     
-    headerSize = strlen(contentType)+strlen(contentEncode)+strlen(contentDes)+200;
-    attachHeader = (char*)calloc(headerSize, 1);
-    if (NULL == attach)
+	headerSize = strlen(contentType)+strlen(contentEncode)+strlen(contentDes)+200;
+	attachHeader = (char*)calloc(headerSize, 1);
+	if (NULL == attach)
 	{
 		perror("malloc...");
 		return -1;
 	}
     
-    /* attachment header */
-    stringCut(filePath, "/", NULL, fileName);
+	/* attachment header */
+	stringCut(filePath, "/", NULL, fileName);
     
     sprintf(attachHeader, "%s;name=\"%s\"\r\n%s\r\n%s;filename=\"%s\"\r\n\r\n", contentType, fileName, contentEncode, contentDes, fileName);
     
@@ -495,7 +495,7 @@ int mailAttachment( char **mail, const  char *filePath)
 
 	SMTP_Print6("[%s][%d] %s size = %d, base64Size = %d \r\n",__FILE__, __LINE__, filePath, fileSize, base64Size);
 
-    /* attachment transform to base64 */
+	/* attachment transform to base64 */
 	base64_encode(base64Attach, base64Size, (unsigned char*)attach, fileSize);
 
 	free(attach);
@@ -508,10 +508,10 @@ int mailAttachment( char **mail, const  char *filePath)
 		return -1;
 	}
 
-    strcat(*mail, attachHeader);
+	strcat(*mail, attachHeader);
 	strcat(*mail, base64Attach);
     
-    free(attachHeader);
+	free(attachHeader);
 	free(base64Attach);
 
 	return fileSize;
@@ -547,14 +547,16 @@ int smtp_entry(const char *file_name)
 	int fd = 0, ret;
 	char *mail = NULL;
 	const  char *filePath = file_name;
-	const  char *mailSubject = "raspberry alert";
-	const  char *mailBody = "please check the attachment";
+	const  char *mailSubject = "alert";
+	const  char *mailBody = "attached";
 	const  char *fromMailAddr= MAIL_ACCOUNT;
 	const  char *mailPasswd= MAIL_PASSWORD;
 	const  char *toMailAddr= MAIL_ACCOUNT;
 	const  char *smtpUrl = SMTP_SERVER;
 
 	mail = (char*)calloc(1, 1);
+
+	printf("sending %s\n", file_name);
 
 	/* prepare mail data */
 	ret = mailText(&mail, fromMailAddr, toMailAddr, mailSubject, mailBody);
@@ -576,7 +578,7 @@ int smtp_entry(const char *file_name)
 	
 	ret = sendEmail(fd, fromMailAddr, toMailAddr, mail, strlen(mail));
 
-	printf("send OK ...\r\n");
+	printf("[%s] send OK\n", file_name);
 
 	return 0;
 }

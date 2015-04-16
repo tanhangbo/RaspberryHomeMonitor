@@ -236,7 +236,6 @@ void* dispatch_thread(void *arg)
 				printf("Saving: %s\n","XIMAGE.jpg");
 
 			smtp_entry("./record/jpg/XIMAGE.jpg");
-
 			create_video(&video_writer, frame);
 
 
@@ -269,10 +268,9 @@ void* dispatch_thread(void *arg)
 				cvReleaseVideoWriter(&video_writer);
 			}
 
-			//compress and send
+
 			system("zip 1.zip ./record/jpg/*");
-			//todo: fix this not ok
-			//smtp_entry("./1.zip");
+			smtp_entry("./1.zip");
 
 			state = NORMAL;
 		break;
