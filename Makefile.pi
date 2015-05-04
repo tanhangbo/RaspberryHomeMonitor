@@ -1,0 +1,42 @@
+#this is makefile for raspberry
+#1.note:you need to install these on raspberry:
+#	sudo apt-get update
+#	sudo apt-get install libcv-dev
+#	sudo apt-get install libopencv-dev
+#2.turn off SHOW_IMAGE_WINDOW because we dont have gui
+#3.set CAMERA_INDEX to 0, we only have one camera
+#4.if VIDIOC_QUERYMENU: Invalid argument appears when running,
+#build opencv by your own may fix this problem
+
+CC := g++
+LD := g++
+DLIBS := -lopencv_core -lopencv_imgproc -lopencv_highgui -lpthread
+
+INCLUDES = /usr/include/opencv
+
+all: Motion pop3_api smtp_api
+	$(CC)  Motion.o pop3.o smtp.o base64.o $(DLIBS) -o Motion
+	chmod +x Motion
+
+Motion:Motion.cpp
+	$(CC) -c -std=c++0x Motion.cpp -o Motion.o  -I $(INCLUDES)
+
+pop3_api: pop3/pop3.cpp
+	$(CC)  -c pop3/pop3.cpp -o pop3.o
+
+smtp_api: smtp/smtp.cpp smtp/base64.cpp
+	$(CC)  -c smtp/smtp.cpp -o smtp.o
+	$(CC)  -c smtp/base64.cpp -o base64.o
+
+.PHONY: clean clean_file
+
+clean:
+	-rm *.o
+	-rm Motion
+
+clean_file:
+	-rm record/jpg/*.jpg
+	-rm record/avi/*.avi
+	-rm *.zip -r
+
+
