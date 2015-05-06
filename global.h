@@ -11,6 +11,19 @@
 #define POP3_SERVER	"pop3.qq.com"
 
 
+#define KEY_ESC 27
+#define DELAY_TIME 30
+#define ERODE_TIMES 1
+#define CAMERA_INDEX 0
+#define RASPBERRY 1
+#if RASPBERRY
+	#define SHOW_IMAGE_WINDOW 0
+	#define VIDEO_COUNT 100
+#else
+	#define SHOW_IMAGE_WINDOW 1
+	#define VIDEO_COUNT 1000
+#endif
+
 #define IMAGE 100
 #define VIDEO 101
 

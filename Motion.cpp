@@ -12,15 +12,11 @@
 using namespace std;  
 
 
-#define KEY_ESC 27
-#define DELAY_TIME 30
-#define ERODE_TIMES 1
-#define CAMERA_INDEX 1
-#define SHOW_IMAGE_WINDOW 1
 
 queue<IplImage *> webcam_buf;
 
 
+char video_path[50] = {0};
 
 
 bool send_one_image = false;
@@ -102,7 +98,7 @@ bool detect_motion(IplImage *frame1, IplImage *frame2, IplImage *frame3)
 
 	cvAnd(frame_gray1, frame_gray2, frame_result1);
 	/* draw the result, and can see the motion */
-        cvThreshold(frame_result1, frame_result1, 35, 255, CV_THRESH_BINARY);
+	cvThreshold(frame_result1, frame_result1, 35, 255, CV_THRESH_BINARY);
 
 
 
@@ -126,12 +122,12 @@ CvVideoWriter *create_video(CvVideoWriter **video_writer, IplImage *frame)
 
 	time_t current_time;
 	struct tm * time_info;
-	char timeString[50] = {0};
+	memset(video_path, 0, sizeof(video_path));
 	time(&current_time);
 	time_info = localtime(&current_time);
-	strftime(timeString, 50, "./record/avi/%m%d_%H%M%S.avi", time_info);
-	printf("creating video:%s\n", timeString);
-	*video_writer =  cvCreateVideoWriter(timeString,
+	strftime(video_path, 50, "./record/avi/%m%d_%H%M%S.avi", time_info);
+	printf("creating video:%s\n", video_path);
+	*video_writer =  cvCreateVideoWriter(video_path,
 				CV_FOURCC('M', 'J', 'P', 'G'), 25.0, cvGetSize(frame));
 
 }
@@ -158,6 +154,9 @@ void* dispatch_thread(void *arg)
 
 	cur_state state = INIT;
 
+	
+	printf("video detect thread starts\n");
+
 	while (true) {
 
 		//printf("size=%d\n", webcam_buf.size());
@@ -165,6 +164,11 @@ void* dispatch_thread(void *arg)
 		if(!webcam_buf.empty()) {
 			frame = webcam_buf.front();
 			webcam_buf.pop();
+		}
+		if (webcam_buf.size() > 10) {
+			printf("your device is too slow, empty buffer!!\n");
+			while (true)
+				webcam_buf.pop();
 		}
 		frame_lock.unlock();
 
@@ -207,7 +211,7 @@ void* dispatch_thread(void *arg)
 
 		switch(state) {
 		case INIT:
-			printf("init state!\n");
+			//printf("init state!\n");
 		break;
 
 		case NORMAL:
@@ -245,7 +249,11 @@ void* dispatch_thread(void *arg)
 		case RECORDING:
 
 			//1. get current picture with an interval
+#if RASPBERRY
+			if (1) {
+#else
 			if (video_count % 20 == 0) {
+#endif
 				char image_path[100];
 				sprintf(image_path, "./record/jpg/IMAGE_%d.jpg", video_count);
 				if(!cvSaveImage(image_path, frame))
@@ -253,7 +261,7 @@ void* dispatch_thread(void *arg)
 			}
 
 			//2. record 1 minute video then stop and rejudge and recode
-			if (video_count < 1000) {
+			if (video_count < VIDEO_COUNT) {
 				cvWriteFrame(video_writer, frame);
 				video_count++;
 			} else {
@@ -267,8 +275,7 @@ void* dispatch_thread(void *arg)
 				printf("stop record\n");
 				cvReleaseVideoWriter(&video_writer);
 			}
-
-
+			//todo: maybe empty buffer after zip
 			system("zip 1.zip ./record/jpg/*");
 			smtp_entry("./1.zip");
 
@@ -330,7 +337,10 @@ int main(int argc,char **argv)
 
 
 	while (true) {
-		
+
+#if RASPBERRY
+		usleep(1000*500); /* 2pics/s */
+#endif
 		frame = cvQueryFrame(capture);
 
 		if (!frame) {
