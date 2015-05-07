@@ -18,7 +18,7 @@
 #define RASPBERRY 1
 #if RASPBERRY
 	#define SHOW_IMAGE_WINDOW 0
-	#define VIDEO_COUNT 100
+	#define IMAGE_COUNT 100
 #else
 	#define SHOW_IMAGE_WINDOW 1
 	#define VIDEO_COUNT 1000

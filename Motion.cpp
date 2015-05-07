@@ -15,9 +15,11 @@ using namespace std;
 
 queue<IplImage *> webcam_buf;
 
+int push_count = 0;
+int get_count = 0;
 
 char video_path[50] = {0};
-
+bool network_busy = false;
 
 bool send_one_image = false;
 bool send_one_video = false;
@@ -116,7 +118,7 @@ bool detect_motion(IplImage *frame1, IplImage *frame2, IplImage *frame3)
 	return false;
 }
 
-
+#if !RASPBERRY
 CvVideoWriter *create_video(CvVideoWriter **video_writer, IplImage *frame)
 {
 
@@ -131,8 +133,20 @@ CvVideoWriter *create_video(CvVideoWriter **video_writer, IplImage *frame)
 				CV_FOURCC('M', 'J', 'P', 'G'), 25.0, cvGetSize(frame));
 
 }
+#endif
 
 
+void create_command_string(char *command, int command_size, char* file_name, int file_name_size)
+{
+	time_t current_time;
+	struct tm * time_info;
+	memset(command, 0, command_size);
+	memset(file_name, 0, file_name_size);
+	time(&current_time);
+	time_info = localtime(&current_time);
+	strftime(file_name, file_name_size, "%m%d_%H%M%S.zip", time_info);
+	sprintf(command, "zip %s ./record/jpg/*", file_name);
+}
 
 
 void* dispatch_thread(void *arg)
@@ -149,7 +163,7 @@ void* dispatch_thread(void *arg)
 	CvVideoWriter *video_writer = NULL;
 
 	int video_count = 0;
-
+	int image_count = 0;
 	int init_step = 0;
 
 	cur_state state = INIT;
@@ -164,16 +178,18 @@ void* dispatch_thread(void *arg)
 		if(!webcam_buf.empty()) {
 			frame = webcam_buf.front();
 			webcam_buf.pop();
+			get_count++;
+			//printf("%d > %d\n", push_count, get_count);
 		}
-		if (webcam_buf.size() > 10) {
+		if (webcam_buf.size() > 100) {
 			printf("your device is too slow, empty buffer!!\n");
-			while (true)
+			while (webcam_buf.size() > 0)
 				webcam_buf.pop();
 		}
 		frame_lock.unlock();
 
 		if (NULL == frame) {
-			usleep(1000);
+			usleep(1000*5);
 			continue;
 		}
 
@@ -222,11 +238,13 @@ void* dispatch_thread(void *arg)
 
 			if (send_one_image) {
 				send_one_image = false;
+				network_busy = true;
 				if(!cvSaveImage("./record/jpg/IMAGE.jpg", frame))
 					printf("Could not save: %s\n","IMAGE.jpg");
 				else
 					printf("Saving: %s\n","IMAGE.jpg");
 				smtp_entry("./record/jpg/IMAGE.jpg");
+				network_busy = false;
 			}
 
 		break;
@@ -234,14 +252,17 @@ void* dispatch_thread(void *arg)
 		case DETECTED:
 
 			//1. get current picture and send
+			network_busy = true;
 			if(!cvSaveImage("./record/jpg/XIMAGE.jpg", frame))
 				printf("Could not save: %s\n","XIMAGE.jpg");
 			else
 				printf("Saving: %s\n","XIMAGE.jpg");
 
 			smtp_entry("./record/jpg/XIMAGE.jpg");
+			network_busy = false;
+#if !RASPBERRY
 			create_video(&video_writer, frame);
-
+#endif
 
 			state = RECORDING;
 		break;
@@ -250,7 +271,7 @@ void* dispatch_thread(void *arg)
 
 			//1. get current picture with an interval
 #if RASPBERRY
-			if (1) {
+			if (image_count++ < IMAGE_COUNT) {
 #else
 			if (video_count % 20 == 0) {
 #endif
@@ -258,26 +279,44 @@ void* dispatch_thread(void *arg)
 				sprintf(image_path, "./record/jpg/IMAGE_%d.jpg", video_count);
 				if(!cvSaveImage(image_path, frame))
 					printf("Could not save: %s\n",image_path);
+			} 
+#if RASPBERRY
+			else {
+				image_count = 0;
+				state = END_REC;
 			}
+#endif
 
+#if !RASPBERRY
 			//2. record 1 minute video then stop and rejudge and recode
 			if (video_count < VIDEO_COUNT) {
+				//printf("V:%d --%d>%d\n", video_count, push_count, get_count);
 				cvWriteFrame(video_writer, frame);
 				video_count++;
 			} else {
 				video_count = 0;
 				state = END_REC;
 			}
+#endif
+
 		break;
 
 		case END_REC:
+#if !RASPBERRY
 			if (video_writer) {
 				printf("stop record\n");
 				cvReleaseVideoWriter(&video_writer);
 			}
-			//todo: maybe empty buffer after zip
-			system("zip 1.zip ./record/jpg/*");
-			smtp_entry("./1.zip");
+#endif
+
+			char zip_command[50];
+			char zip_file_name[50];
+			create_command_string(zip_command, sizeof(zip_command), zip_file_name, sizeof(zip_file_name));
+			printf("executing command %s\n...", zip_command);
+			network_busy = true;
+			system(zip_command);
+			smtp_entry(zip_file_name);
+			network_busy = false;
 
 			state = NORMAL;
 		break;
@@ -335,11 +374,13 @@ int main(int argc,char **argv)
 	if (err != 0)
 		printf("\ncan't create thread :[%s]", strerror(err));
 
-
+	int query = 0;
 	while (true) {
 
 #if RASPBERRY
 		usleep(1000*500); /* 2pics/s */
+		while (network_busy)
+			usleep(1000*500);
 #endif
 		frame = cvQueryFrame(capture);
 
@@ -354,7 +395,7 @@ int main(int argc,char **argv)
 		cvCopy(frame, frame_copy);
 		webcam_buf.push(frame_copy);
 		frame_lock.unlock();
-
+		push_count++;
 #if SHOW_IMAGE_WINDOW
 		cvShowImage("camera_player", frame);
 #endif

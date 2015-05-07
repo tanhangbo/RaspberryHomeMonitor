@@ -1,0 +1,36 @@
+ 
+
+format: capture, cpu, memory
+
+
+
+ 
+capture only(2pics/s using sleep):
+	8.2  6.5 
+ 
+capture only(10pics/s):
+	58.5  6.5
+  
+capture + copy and release
+	8.9  6.5  
+ 
+capture + copy and release + copy for detect 
+  10.2  7.1
+
+capture + copy and release + copy for detect  + cvCvtColor
+	18.8  7.3
+capture + copy and release + copy for detect  + (cvCvtColor + cvThreshold...)
+	23.3  7.4
+capture + copy and release + copy for detect  + (cvCvtColor + cvThreshold... + cvErode)
+	28.6  7.4 
+	
+	
+capture + copy and release + video + image
+	68.5  8.5
+capture + copy and release + video
+	46.0  8.3
+	
+//now use this
+capture + copy and release + image
+	37.9  7.4  
+
