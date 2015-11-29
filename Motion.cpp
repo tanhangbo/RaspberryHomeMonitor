@@ -1,11 +1,9 @@
 #include <cv.h>
 #include <highgui.h>
 #include <pthread.h>
-
 #include <iostream>
 #include <thread>
 #include <mutex>
-
 #include "global.h"
 
 #include <queue>
@@ -149,6 +147,28 @@ void create_command_string(char *command, int command_size, char* file_name, int
 }
 
 
+/*
+	pop frame from queue,
+	if fail, return null
+*/
+IplImage *pop_frame()
+{
+	IplImage *frame = NULL;
+	frame_lock.lock();
+	if(!webcam_buf.empty()) {
+		frame = webcam_buf.front();
+		webcam_buf.pop();
+	}
+	if (webcam_buf.size() > 100) {
+		printf("your device is too slow, empty buffer!!\n");
+		while (webcam_buf.size() > 0)
+			webcam_buf.pop();
+	}
+	frame_lock.unlock();
+	return frame;
+}
+
+
 void* dispatch_thread(void *arg)
 {
 
@@ -173,30 +193,24 @@ void* dispatch_thread(void *arg)
 
 	while (true) {
 
-		//printf("size=%d\n", webcam_buf.size());
-		frame_lock.lock();
-		if(!webcam_buf.empty()) {
-			frame = webcam_buf.front();
-			webcam_buf.pop();
-			get_count++;
-			//printf("%d > %d\n", push_count, get_count);
-		}
-		if (webcam_buf.size() > 100) {
-			printf("your device is too slow, empty buffer!!\n");
-			while (webcam_buf.size() > 0)
-				webcam_buf.pop();
-		}
-		frame_lock.unlock();
 
+		frame = pop_frame();
 		if (NULL == frame) {
 			usleep(1000*5);
 			continue;
 		}
 
 
-		//void cvCopy( const CvArr* src, CvArr* dst, const CvArr* mask=NULL );
-		if (init_step < 3) {
-			if (0 == init_step) {
+		if (frame1 != NULL) {
+			/* cur_frame -> frame3 -> frame2 -> frame1 */
+			cvCopy(frame2, frame1);
+			cvCopy(frame3, frame2);
+			cvCopy(frame, frame3);
+		}
+
+		switch(state) {
+		case INIT:
+			if (frame1 == NULL) {
 				frame1 =  cvCreateImage(cvGetSize(frame),frame->depth,3);
 				frame2 =  cvCreateImage(cvGetSize(frame),frame->depth,3);
 				frame3 =  cvCreateImage(cvGetSize(frame),frame->depth,3);
@@ -204,30 +218,13 @@ void* dispatch_thread(void *arg)
 				frame_gray2 = cvCreateImage(cvGetSize(frame),frame->depth,1);
 				frame_gray3 = cvCreateImage(cvGetSize(frame),frame->depth,1);
 				frame_result1 = cvCreateImage(cvGetSize(frame),frame->depth,1);	
-
-				cvCopy(frame, frame1);
-			} else if (1 == init_step) {
-				cvCopy(frame, frame2);
-			} else if (2 == init_step) {
-				cvCopy(frame, frame3);
+			}
+			/* ensure frame1,frame2,frame3 are filled */
+			if (init_step < 3) {
+				init_step++;
+			} else {
 				state = NORMAL;
 			}
-
-			init_step++;
-		} else {
-
-			//cur_frame -> frame3 -> frame2 -> frame1
-			cvCopy(frame2, frame1);
-			cvCopy(frame3, frame2);
-			cvCopy(frame, frame3);
-				
-		}
-
-
-
-		switch(state) {
-		case INIT:
-			//printf("init state!\n");
 		break;
 
 		case NORMAL:
@@ -339,6 +336,7 @@ void* dispatch_thread(void *arg)
 
 	return NULL;
 }
+
 
 
 /*
