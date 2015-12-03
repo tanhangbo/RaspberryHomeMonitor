@@ -10,10 +10,13 @@
 using namespace std;  
 
 
+//todo: make a struct to store the global info
+
+
 
 queue<IplImage *> webcam_buf;
 
-int push_count = 0;
+
 int get_count = 0;
 
 char video_path[50] = {0};
@@ -339,6 +342,69 @@ void* dispatch_thread(void *arg)
 
 
 
+
+void rhm_prepare_capture(CvCapture **capture)
+{
+
+	*capture = cvCreateCameraCapture(CAMERA_INDEX);
+	assert(NULL != *capture);
+
+	cvSetCaptureProperty(*capture, CV_CAP_PROP_FRAME_WIDTH, 640);
+	cvSetCaptureProperty(*capture, CV_CAP_PROP_FRAME_HEIGHT, 480);
+
+	return;
+}
+
+
+void rhm_start_threads()
+{
+
+	int err = 0;
+	pthread_t tid[10];
+	/* receive message from email and execute command */
+	err = pthread_create(&(tid[4]), NULL, &pop3_thread, NULL);
+	if (err != 0)
+		printf("\ncan't create thread :[%s]", strerror(err));
+
+	/* get buffer from main and process */
+	err = pthread_create(&(tid[5]), NULL, &dispatch_thread, NULL);
+	if (err != 0)
+		printf("\ncan't create thread :[%s]", strerror(err));
+}
+
+
+void rhm_ui_init()
+{
+#if SHOW_IMAGE_WINDOW
+	cvNamedWindow("camera_player", CV_WINDOW_AUTOSIZE);
+#endif
+}
+
+void rhm_ui_show_frame(IplImage *frame)
+{
+#if SHOW_IMAGE_WINDOW
+		cvShowImage("camera_player", frame);
+#endif
+}
+
+void rhm_ui_deinit()
+{
+#if SHOW_IMAGE_WINDOW
+	cvDestroyWindow("camera_player");
+#endif
+
+}
+
+void rhm_cpu_sleep()
+{
+
+#if RASPBERRY
+		usleep(1000*500); /* 2pics/s */
+		while (network_busy)
+			usleep(1000*500);
+#endif
+}
+
 /*
 
 注意： cvQueryFrame返回的指针总是指向同一块内存。建议cvQueryFrame后拷贝一份。
@@ -348,40 +414,22 @@ void* dispatch_thread(void *arg)
 int main(int argc,char **argv)
 {
 
-	int err = 0;
-	pthread_t tid[10];
-
-#if SHOW_IMAGE_WINDOW
-	cvNamedWindow("camera_player", CV_WINDOW_AUTOSIZE);
-#endif
 
 	IplImage *frame = NULL;
-	CvCapture *capture = cvCreateCameraCapture(CAMERA_INDEX);
-	assert(NULL != capture);
+	CvCapture *capture = NULL;
 
-	cvSetCaptureProperty(capture, CV_CAP_PROP_FRAME_WIDTH, 640);
-	cvSetCaptureProperty(capture, CV_CAP_PROP_FRAME_HEIGHT, 480);
+	rhm_prepare_capture(&capture);
+	rhm_start_threads();
+	rhm_ui_init();
 
-
-
-	err = pthread_create(&(tid[4]), NULL, &pop3_thread, NULL);
-	if (err != 0)
-		printf("\ncan't create thread :[%s]", strerror(err));
-
-	err = pthread_create(&(tid[5]), NULL, &dispatch_thread, NULL);
-	if (err != 0)
-		printf("\ncan't create thread :[%s]", strerror(err));
 
 	int query = 0;
 	while (true) {
 
-#if RASPBERRY
-		usleep(1000*500); /* 2pics/s */
-		while (network_busy)
-			usleep(1000*500);
-#endif
-		frame = cvQueryFrame(capture);
+		rhm_cpu_sleep();
 
+		/* query frame, on error exit */
+		frame = cvQueryFrame(capture);
 		if (!frame) {
 			printf("\n critical error when capture\n");
 			break;
@@ -393,21 +441,22 @@ int main(int argc,char **argv)
 		cvCopy(frame, frame_copy);
 		webcam_buf.push(frame_copy);
 		frame_lock.unlock();
-		push_count++;
-#if SHOW_IMAGE_WINDOW
-		cvShowImage("camera_player", frame);
-#endif
 
+
+		rhm_ui_show_frame(frame);
+
+#if 0
 		char c = cvWaitKey(DELAY_TIME);
 		if (KEY_ESC == c)
 			break;
-
+#endif
 	}
 
-	//do not forget to release the resource
+	/* do not forget to release the resource */
 	cvReleaseCapture(&capture);
-#if SHOW_IMAGE_WINDOW
-	cvDestroyWindow("camera_player");
-#endif
+
+	rhm_ui_deinit();
+
+
 	return 0;
 }
